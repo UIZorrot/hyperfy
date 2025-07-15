@@ -8,7 +8,8 @@ import { cloneDeep, isNumber } from 'lodash-es'
 import * as THREE from '../extras/three'
 
 const SAVE_INTERVAL = parseInt(process.env.SAVE_INTERVAL || '60') // seconds
-const PING_RATE = 1 // seconds
+const PING_RATE = parseInt(process.env.PING_RATE || '30') // seconds - increased for proxy environments
+const PING_TIMEOUT = parseInt(process.env.PING_TIMEOUT || '60') // seconds - how long to wait for pong
 const defaultSpawn = '{ "position": [0, 0, 0], "quaternion": [0, 0, 0, 1] }'
 
 const HEALTH_MAX = 100
@@ -93,14 +94,21 @@ export class ServerNetwork extends System {
 
   checkSockets() {
     // see: https://www.npmjs.com/package/ws#how-to-detect-and-close-broken-connections
+    const now = Date.now()
     const dead = []
+
     this.sockets.forEach(socket => {
-      if (!socket.alive) {
+      // Check if socket has been waiting for pong too long
+      if (!socket.alive && socket.lastPingTime && (now - socket.lastPingTime) > (PING_TIMEOUT * 1000)) {
+        console.log('Socket timeout - no pong received:', socket.id)
         dead.push(socket)
-      } else {
+      } else if (socket.alive) {
+        // Send ping and mark as waiting for pong
         socket.ping()
+        socket.lastPingTime = now
       }
     })
+
     dead.forEach(socket => socket.disconnect())
   }
 
@@ -216,9 +224,12 @@ export class ServerNetwork extends System {
 
   async onConnection(ws, params) {
     try {
+      console.log('New WebSocket connection attempt:', { params })
+
       // check player limit
       const playerLimit = this.world.settings.playerLimit
       if (isNumber(playerLimit) && playerLimit > 0 && this.sockets.size >= playerLimit) {
+        console.log('Connection rejected: player limit reached')
         const packet = writePacket('kick', 'player_limit')
         ws.send(packet)
         ws.disconnect()
@@ -230,17 +241,24 @@ export class ServerNetwork extends System {
       let name = params.name
       let avatar = params.avatar
 
+      console.log('Processing authToken:', authToken ? 'present' : 'missing')
+
       // get or create user
       let user
       if (authToken) {
         try {
-          const { userId } = await readJWT(authToken)
-          user = await this.db('users').where('id', userId).first()
+          const jwtResult = await readJWT(authToken)
+          console.log('JWT verification result:', jwtResult)
+          if (jwtResult && jwtResult.userId) {
+            user = await this.db('users').where('id', jwtResult.userId).first()
+            console.log('User found in database:', user ? 'yes' : 'no')
+          }
         } catch (err) {
-          console.error('failed to read authToken:', authToken)
+          console.error('failed to read authToken:', authToken, err)
         }
       }
       if (!user) {
+        console.log('Creating new user')
         user = {
           id: uuid(),
           name: 'Anonymous',
@@ -250,11 +268,13 @@ export class ServerNetwork extends System {
         }
         await this.db('users').insert(user)
         authToken = await createJWT({ userId: user.id })
+        console.log('New user created with ID:', user.id)
       }
       user.roles = user.roles.split(',')
 
       // disconnect if user already in this world
       if (this.sockets.has(user.id)) {
+        console.log('Connection rejected: duplicate user', user.id)
         const packet = writePacket('kick', 'duplicate_user')
         ws.send(packet)
         ws.disconnect()
@@ -272,6 +292,7 @@ export class ServerNetwork extends System {
 
       // create socket
       const socket = new Socket({ id: user.id, ws, network: this })
+      console.log('Socket created for user:', user.id)
 
       // spawn player
       socket.player = this.world.entities.add(
@@ -290,8 +311,10 @@ export class ServerNetwork extends System {
         },
         true
       )
+      console.log('Player spawned for user:', user.id)
 
       // send snapshot
+      console.log('Sending snapshot to user:', user.id)
       socket.send('snapshot', {
         id: socket.id,
         serverTime: performance.now(),
@@ -308,12 +331,19 @@ export class ServerNetwork extends System {
       })
 
       this.sockets.set(socket.id, socket)
+      console.log('User successfully connected:', user.id, 'Total connections:', this.sockets.size)
 
       // enter events on the server are sent after the snapshot.
       // on the client these are sent during PlayerRemote.js entity instantiation!
       this.world.events.emit('enter', { playerId: socket.player.data.id })
     } catch (err) {
-      console.error(err)
+      console.error('Error in onConnection:', err)
+      // Make sure to close the connection on error
+      try {
+        ws.close(1011, 'Server error')
+      } catch (closeErr) {
+        console.error('Error closing WebSocket:', closeErr)
+      }
     }
   }
 

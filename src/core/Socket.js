@@ -11,6 +11,7 @@ export class Socket {
     this.alive = true
     this.closed = false
     this.disconnected = false
+    this.lastPingTime = null
 
     this.ws.on('message', this.onMessage)
     this.ws.on('pong', this.onPong)
@@ -48,13 +49,18 @@ export class Socket {
   }
 
   onClose = e => {
+    console.log('Socket closed for user:', this.id, 'code:', e?.code, 'reason:', e?.reason)
     this.closed = true
     this.disconnect(e?.code)
   }
 
   disconnect(code) {
-    if (!this.closed) return this.ws.terminate()
+    if (!this.closed) {
+      console.log('Terminating socket for user:', this.id)
+      return this.ws.terminate()
+    }
     if (this.disconnected) return
+    console.log('Disconnecting user:', this.id, 'code:', code)
     this.disconnected = true
     this.network.onDisconnect(this, code)
   }

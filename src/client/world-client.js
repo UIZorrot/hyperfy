@@ -29,11 +29,11 @@ export function Client({ wsUrl, onSetup }) {
         bg: '/day2-2k.jpg',
         hdr: '/day2.hdr',
         sunDirection: new THREE.Vector3(-1, -2, -2).normalize(),
-        sunIntensity: 1,
-        sunColor: 0xffffff,
-        fogNear: null,
-        fogFar: null,
-        fogColor: null,
+        sunIntensity: 3,        // 降低太阳强度营造夜晚效果
+        sunColor: 0x9966cc,       // 紫色调的光照
+        fogNear: 100,             // 雾开始距离
+        fogFar: 1500,             // 雾结束距离设为1000
+        fogColor: "#FFFFFF",      // 黄昏色雾气（珊瑚橙色）
       }
       if (typeof wsUrl === 'function') {
         wsUrl = wsUrl()

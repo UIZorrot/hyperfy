@@ -197,6 +197,13 @@ try {
 
 async function worldNetwork(fastify) {
   fastify.get('/ws', { websocket: true }, (ws, req) => {
+    console.log('WebSocket upgrade request from:', req.ip, 'User-Agent:', req.headers['user-agent'])
+    console.log('Request headers:', {
+      'x-forwarded-for': req.headers['x-forwarded-for'],
+      'x-real-ip': req.headers['x-real-ip'],
+      'connection': req.headers.connection,
+      'upgrade': req.headers.upgrade
+    })
     world.network.onConnection(ws, req.query)
   })
 }

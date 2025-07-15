@@ -34,7 +34,12 @@ export function createJWT(data) {
 export function readJWT(token) {
   return new Promise((resolve, reject) => {
     jwt.verify(token, jwtSecret, (err, data) => {
-      resolve(err ? null : data)
+      if (err) {
+        console.log('JWT verification failed:', err.message)
+        resolve(null)
+      } else {
+        resolve(data)
+      }
     })
   })
 }

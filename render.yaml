@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: hyperfy-world
+    env: node
+    buildCommand: npm run build
+    startCommand: npm run start
+    plan: starter
+    healthCheckPath: /status
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: WORLD
+        value: world
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_CODE
+        value: ""
+      - key: SAVE_INTERVAL
+        value: 60
+      - key: PUBLIC_PLAYER_COLLISION
+        value: false
+      - key: PUBLIC_MAX_UPLOAD_SIZE
+        value: 12
+      - key: PUBLIC_WS_URL
+        fromService:
+          type: web
+          name: hyperfy-world
+          property: host
+          envVarKey: RENDER_EXTERNAL_URL
+          transform: "wss://${RENDER_EXTERNAL_URL}/ws"
+      - key: PUBLIC_API_URL
+        fromService:
+          type: web
+          name: hyperfy-world
+          property: host
+          envVarKey: RENDER_EXTERNAL_URL
+          transform: "https://${RENDER_EXTERNAL_URL}/api"
+      - key: PUBLIC_ASSETS_URL
+        fromService:
+          type: web
+          name: hyperfy-world
+          property: host
+          envVarKey: RENDER_EXTERNAL_URL
+          transform: "https://${RENDER_EXTERNAL_URL}/assets"
