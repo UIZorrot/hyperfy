@@ -74,10 +74,16 @@ export class App extends Entity {
     // otherwise we can load the model and script
     else {
       try {
-        const type = blueprint.model.endsWith('vrm') ? 'avatar' : 'model'
-        let glb = this.world.loader.get(type, blueprint.model)
-        if (!glb) glb = await this.world.loader.load(type, blueprint.model)
-        root = glb.toNodes()
+        // Check if blueprint.model exists before trying to load it
+        if (blueprint.model) {
+          const type = blueprint.model.endsWith('vrm') ? 'avatar' : 'model'
+          let glb = this.world.loader.get(type, blueprint.model)
+          if (!glb) glb = await this.world.loader.load(type, blueprint.model)
+          root = glb.toNodes()
+        } else {
+          // No model specified, create a simple placeholder
+          root = createNode('group')
+        }
       } catch (err) {
         console.error(err)
         crashed = true
@@ -404,7 +410,7 @@ export class App extends Entity {
   getNodes() {
     // note: this is currently just used in the nodes tab in the app inspector
     // to get a clean hierarchy
-    if (!this.blueprint) return
+    if (!this.blueprint || !this.blueprint.model) return
     const type = this.blueprint.model.endsWith('vrm') ? 'avatar' : 'model'
     let glb = this.world.loader.get(type, this.blueprint.model)
     if (!glb) return

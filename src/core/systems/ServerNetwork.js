@@ -277,7 +277,7 @@ export class ServerNetwork extends System {
         console.log('Connection rejected: duplicate user', user.id)
         const packet = writePacket('kick', 'duplicate_user')
         ws.send(packet)
-        ws.disconnect()
+        ws.close()
         return
       }
 
